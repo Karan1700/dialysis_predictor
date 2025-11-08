@@ -3,25 +3,25 @@ from flask_cors import CORS
 import pickle
 import pandas as pd
 import numpy as np
+import joblib
+import os
 
 app = Flask(__name__)
 CORS(app)
 
+# --- LOAD MODEL AND SCALER ---
+# Use relative paths (Render doesn't have your local E: drive)
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "random_forest_model.pkl")
+SCALER_PATH = os.path.join(os.path.dirname(__file__), "scaler.pkl")
+
 # Load model and scaler
-import joblib
-
-# Load the trained RandomForest model
-model = joblib.load(r"E:\Data Science\random_forest_model.pkl")
-
-with open(r"E:\Data Science\scaler.pkl", "rb") as f:
+model = joblib.load(MODEL_PATH)
+with open(SCALER_PATH, "rb") as f:
     scaler = pickle.load(f)
 
-# Columns - CORRECTED ORDER to match training
+# Define feature columns
 numeric_cols = ["Age", "Creatinine_Level", "BUN", "GFR", "Urine_Output"]
 categorical_cols = ["Diabetes", "Hypertension", "CKD_Status"]
-
-# IMPORTANT: Feature order must match training order
-# Training order: Age, Creatinine_Level, BUN, Diabetes, Hypertension, GFR, Urine_Output, CKD_Status
 feature_order = ["Age", "Creatinine_Level", "BUN", "Diabetes", "Hypertension", "GFR", "Urine_Output", "CKD_Status"]
 
 @app.route("/predict", methods=["POST"])
@@ -44,7 +44,7 @@ def predict():
         if df.isnull().any().any():
             return jsonify({"error": "Missing or invalid input values. Please provide all fields."}), 400
 
-        # Type conversion
+        # Convert datatypes
         df[numeric_cols] = df[numeric_cols].astype(float)
         df[categorical_cols] = df[categorical_cols].astype(int)
 
@@ -52,7 +52,7 @@ def predict():
         df_scaled = df.copy()
         df_scaled[numeric_cols] = scaler.transform(df[numeric_cols])
 
-        # Reorder columns to match training order
+        # Reorder columns to match model training
         X_input = df_scaled[feature_order]
 
         # Predict
@@ -62,8 +62,7 @@ def predict():
 
     except Exception as e:
         return jsonify({"error": f"Server error: {str(e)}"}), 500
-    
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
